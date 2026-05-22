@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Kigali Population Heatmap 2022</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+  <style>
+    body { margin: 0; }
+    #map { height: 100vh; width: 100%; }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+
+<script>
+
+  // 1. Initialize map
+  var map = L.map('map').setView([-1.9500, 30.0588], 12);
+
+  // 2. Basemap
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  // 3. Load GeoJSON using fetch
+  // ⚠️ Replace 'kigali_centroids.geojson' with your actual filename
+  fetch('Kigali_Sectors_centroids.geojson')
+    .then(function(response) {
+      return response.json();
+    })
+    .then(function(geojson) {
+      buildHeatmap(geojson);
+    })
+    .catch(function(error) {
+      alert('Error loading GeoJSON: ' + error.message);
+    });
+
+  // 4. Build heatmap
+  function buildHeatmap(geojson) {
+    var features = geojson.features;
+
+    // Calculate max density
+    var maxDensity = Math.max(...features.map(function(f) {
+      return f.properties.pop / f.properties.area_m2;
+    }));
+
+    // Build heatmap points [lat, lon, intensity]
+    var heatPoints = features.map(function(f) {
+      var lon = f.geometry.coordinates[0];
+      var lat = f.geometry.coordinates[1];
+      var intensity = (f.properties.pop / f.properties.area_m2) / maxDensity;
+      return [lat, lon, intensity];
+    });
+
+    // Add heatmap layer
+    L.heatLayer(heatPoints, {
+      radius: 45,
+      blur: 30,
+      max: 1.0,
+      gradient: {
+        0.0: 'green',
+        0.5: 'lime',
+        0.7: 'orange',
+        1.0: 'pink'
+      }
+    }).addTo(map);
+
+    // Add circle markers with popups
+    features.forEach(function(f) {
+      var lat = f.geometry.coordinates[1];
+      var lon = f.geometry.coordinates[0];
+      var props = f.properties;
+      var density = props.pop / props.area_m2;
+      var intensity = (density / maxDensity).toFixed(4);
+
+      L.circleMarker([lat, lon], {
+        radius: 5,
+        fillColor: 'orange',
+        color: 'white',
+        weight: 1,
+        fillOpacity: 0.9
+      }).bindPopup(`
+        <b>${props.sector_name}</b><br>
+        Population: ${Number(props.pop).toLocaleString()}<br>
+        Area: ${(props.area_m2 / 1000000).toFixed(2)} km²<br>
+        Density: ${density.toFixed(6)} pop/m²<br>
+        Intensity: ${intensity}
+      `).addTo(map);
+    });
+  }
+
+</script>
+</body>
+</html>
